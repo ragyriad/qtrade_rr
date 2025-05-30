@@ -1,16 +1,20 @@
 """Core module for Questrade API wrapper."""
 
-import logging
+import logging, requests, yaml
 from typing import Any, Dict, List, Optional, Union
 
-import requests
-import yaml
-
-from .utility import TokenDict, get_access_token_yaml, validate_access_token
+from .utility import (
+    TokenDict,
+    get_access_token_yaml,
+    validate_access_token,
+    generate_expiry_timestamp,
+)
 
 log = logging.getLogger(__name__)  # pylint: disable=C0103
 
-TOKEN_URL = "https://login.questrade.com/oauth2/token?grant_type=refresh_token&refresh_token="
+TOKEN_URL = (
+    "https://login.questrade.com/oauth2/token?grant_type=refresh_token&refresh_token="
+)
 
 
 class Questrade:
@@ -50,7 +54,6 @@ class Questrade:
                 + " "
                 + self.access_token["access_token"]
             }
-            # add headers to session
             self.session.headers.update(self.headers)
         else:
             self._get_access_token(save_yaml=save_yaml)
@@ -91,7 +94,9 @@ class Questrade:
         else:
             log.error("Access token not set...")
             raise Exception("Access token not set...")
-        resp = self.session.request(method, url, params=params, data=data, json=json, timeout=30)
+        resp = self.session.request(
+            method, url, params=params, data=data, json=json, timeout=30
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -106,10 +111,11 @@ class Questrade:
         """
         with open(yaml_path, "w") as yaml_file:
             log.debug("Saving access token to yaml file...")
+            print(self.access_token)
             yaml.dump(self.access_token, yaml_file)
 
     def _get_access_token(
-        self, save_yaml: bool = False, yaml_path: str = "access_token.yml"
+        self, save_yaml: bool = False, yaml_path: str = "./brokers/questrade.yaml"
     ) -> TokenDict:
         """Get access token.
 
@@ -134,6 +140,7 @@ class Questrade:
         data = requests.get(url)
         data.raise_for_status()
         response = data.json()
+        response["expires_at"] = generate_expiry_timestamp(response.get("expires_in"))
 
         # validate response
         validate_access_token(**response)
@@ -141,7 +148,9 @@ class Questrade:
         self.access_token = response
 
         # clean the api_server entry of the escape characters
-        self.access_token["api_server"] = self.access_token["api_server"].replace("\\", "")
+        self.access_token["api_server"] = self.access_token["api_server"].replace(
+            "\\", ""
+        )
         if self.access_token["api_server"][-1] == "/":
             self.access_token["api_server"] = self.access_token["api_server"][:-1]
 
@@ -156,7 +165,9 @@ class Questrade:
 
         # save access token
         if save_yaml:
-            log.info("Saving yaml file to {}...".format(yaml_path))  # pylint: disable=W1202
+            log.info(
+                "Saving yaml file to {}...".format(yaml_path)
+            )  # pylint: disable=W1202
             self.save_token_to_yaml(yaml_path=yaml_path)
 
         return self.access_token
@@ -194,14 +205,16 @@ class Questrade:
         data = requests.get(url)
         data.raise_for_status()
         response = data.json()
-
+        response["expires_at"] = generate_expiry_timestamp(response.get("expires_in"))
         # validate response
         validate_access_token(**response)
         # set access token
         self.access_token = response
 
         # clean the api_server entry of the escape characters
-        self.access_token["api_server"] = self.access_token["api_server"].replace("\\", "")
+        self.access_token["api_server"] = self.access_token["api_server"].replace(
+            "\\", ""
+        )
         if self.access_token["api_server"][-1] == "/":
             self.access_token["api_server"] = self.access_token["api_server"][:-1]
 
@@ -221,6 +234,29 @@ class Questrade:
 
         return self.access_token
 
+    def get_accounts(self) -> List[Dict]:
+        """Get full account information.
+
+        This method fetches all account details connected to the token.
+
+        Returns
+        -------
+        list of dict:
+            List of account objects with full details as returned by Questrade API.
+        """
+        log.info("Getting full accounts information...")
+        response: Dict[str, List[Dict]] = self._send_message("get", "accounts")
+
+        try:
+            accounts = response["accounts"]
+            if not isinstance(accounts, list):
+                raise Exception("Invalid response format: 'accounts' is not a list")
+
+        except Exception:
+            log.error(f"Unexpected response: {response}")
+            raise
+        return accounts
+
     def get_account_id(self) -> List[int]:
         """Get account ID.
 
@@ -232,7 +268,9 @@ class Questrade:
             List of account IDs.
         """
         log.info("Getting account ID...")
-        response: Dict[str, List[Dict[str, int]]] = self._send_message("get", "accounts")
+        response: Dict[str, List[Dict[str, int]]] = self._send_message(
+            "get", "accounts"
+        )
 
         account_id = []
         try:
@@ -283,7 +321,9 @@ class Questrade:
 
         """
         log.info("Getting account positions...")
-        response = self._send_message("get", "accounts/" + str(account_id) + "/positions")
+        response = self._send_message(
+            "get", "accounts/" + str(account_id) + "/positions"
+        )
         try:
             positions = response["positions"]
         except Exception:
@@ -310,14 +350,18 @@ class Questrade:
             Dictionary holding balance information
         """
         log.info("Getting account activities...")
-        response = self._send_message("get", "accounts/" + str(account_id) + "/balances")
+        response = self._send_message(
+            "get", "accounts/" + str(account_id) + "/balances"
+        )
         try:
             return response
         except Exception:
             print(response)
             raise Exception
 
-    def get_account_activities(self, account_id: int, start_date: str, end_date: str) -> List[Dict]:
+    def get_account_activities(
+        self, account_id: int, start_date: str, end_date: str
+    ) -> List[Dict]:
         """Get account activities.
 
         This method will get the account activities for a given account ID in a given time
@@ -347,9 +391,9 @@ class Questrade:
         ----------
         account_id: int
             Accound ID for which the activities will be returned.
-        start_date: str
+        startDate: str
             Start date of time period, format YYYY-MM-DD
-        end_date: str
+        endDate: str
             End date of time period, format YYYY-MM-DD
 
         Returns
@@ -360,8 +404,8 @@ class Questrade:
 
         """
         payload = {
-            "startTime": str(start_date) + "T00:00:00-05:00",
-            "endTime": str(end_date) + "T00:00:00-05:00",
+            "startTime": str(start_date),
+            "endTime": str(end_date),
         }
 
         log.info("Getting account activities...")
@@ -377,7 +421,9 @@ class Questrade:
 
         return activities
 
-    def get_account_executions(self, account_id: int, start_date: str, end_date: str) -> List[Dict]:
+    def get_account_executions(
+        self, account_id: int, start_date: str, end_date: str
+    ) -> List[Dict]:
         """Get account executions.
 
         This method will get the account executionss for a given account ID in a given time
@@ -414,9 +460,9 @@ class Questrade:
         ----------
         account_id: int
             Accound ID for which the executionss will be returned.
-        start_date: str
+        startDate: str
             Start date of time period, format YYYY-MM-DD
-        end_date: str
+        endDate: str
             End date of time period, format YYYY-MM-DD
 
         Returns
@@ -444,7 +490,9 @@ class Questrade:
 
         return executions
 
-    def ticker_information(self, tickers: Union[str, List[str]]) -> Union[Dict, List[Dict]]:
+    def ticker_information(
+        self, tickers: Union[str, List[str]]
+    ) -> Union[Dict, List[Dict]]:
         """Get ticker information.
 
         This function gets information such as a quote for a single ticker or a list of tickers.
@@ -545,12 +593,18 @@ class Questrade:
         if isinstance(info, dict):
             ids = info["symbolId"]
         else:
-            log.error(f"Something went wrong retrieving the symbol ID for ticker {ticker}...")
-            raise Exception(f"Something went wrong retrieving the symbol ID for ticker {ticker}...")
+            log.error(
+                f"Something went wrong retrieving the symbol ID for ticker {ticker}..."
+            )
+            raise Exception(
+                f"Something went wrong retrieving the symbol ID for ticker {ticker}..."
+            )
 
         if interval not in self._valid_intervals():
             log.error(f"{interval} not a valid interval option.")
-            raise Exception(f"{interval} must be one of {list(self._valid_intervals())}")
+            raise Exception(
+                f"{interval} must be one of {list(self._valid_intervals())}"
+            )
 
         payload = {
             "startTime": str(start_date) + "T00:00:00-05:00",
@@ -559,10 +613,14 @@ class Questrade:
         }
 
         log.info(
-            "Getting historical data for {0} from {1} to {2}".format(ticker, start_date, end_date)
+            "Getting historical data for {0} from {1} to {2}".format(
+                ticker, start_date, end_date
+            )
         )
 
-        response = self._send_message("get", "markets/candles/" + str(ids), params=payload)
+        response = self._send_message(
+            "get", "markets/candles/" + str(ids), params=payload
+        )
         try:
             quotes = response["candles"]
         except Exception:
@@ -571,7 +629,9 @@ class Questrade:
 
         return quotes
 
-    def submit_order(self, acct_id: int, order_dict: Dict[str, Union[int, bool, str]]) -> Dict:
+    def submit_order(
+        self, acct_id: int, order_dict: Dict[str, Union[int, bool, str]]
+    ) -> Dict:
         """Submit order.
 
         This method submits an order to Questrade. Note that currently only partner apps can submit
@@ -604,7 +664,9 @@ class Questrade:
         dict
             Dictionary with the API response to the order submission.
         """
-        uri = self.access_token["api_server"] + "/v1/accounts/" + str(acct_id) + "/orders"
+        uri = (
+            self.access_token["api_server"] + "/v1/accounts/" + str(acct_id) + "/orders"
+        )
         log.info("Posting order...")
         data = self.session.post(uri, json=order_dict)
         data.raise_for_status()
@@ -667,8 +729,12 @@ class Questrade:
         log.info(f"Getting option chain for ticker {ticker} ...")
         info = self.ticker_information([ticker])
         if not isinstance(info, dict):
-            log.error(f"Something went wrong retrieving the symbol ID for ticker {ticker}...")
-            raise Exception(f"Something went wrong retrieving the symbol ID for ticker {ticker}...")
+            log.error(
+                f"Something went wrong retrieving the symbol ID for ticker {ticker}..."
+            )
+            raise Exception(
+                f"Something went wrong retrieving the symbol ID for ticker {ticker}..."
+            )
         symbol_id = info["symbolId"]
         response = self._send_message("get", "symbols/" + str(symbol_id) + "/options")
         return response
@@ -759,9 +825,4 @@ class Questrade:
 
     @staticmethod
     def _valid_intervals():
-        return set(["OneMinute", "TwoMinutes", "ThreeMinutes", "FourMinutes", 
-        	"FiveMinutes", "TenMinutes", "FifteenMinutes", "TwentyMinutes", 
-        	"HalfHour", "OneHour", "TwoHours", "FourHours", 
-        	"OneDay", "OneWeek", "OneMonth", "OneYear"])
-
-
+        return set(["OneDay", "OneWeek", "OneMonth", "OneYear"])

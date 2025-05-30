@@ -1,9 +1,7 @@
 """Collection of utility functions."""
-import logging
-import sys
-from typing import Optional
 
-import yaml
+import logging, time, sys, yaml
+from typing import Optional
 
 if sys.version_info < (3, 8, 0):
     from typing_extensions import TypedDict
@@ -21,6 +19,7 @@ TokenDict = TypedDict(
         "access_token": str,
         "api_server": str,
         "expires_in": int,
+        "expires_at": int,
         "refresh_token": str,
         "token_type": str,
     },
@@ -52,10 +51,15 @@ def get_access_token_yaml(token_yaml: str) -> TokenDict:
     return token_yaml_payload
 
 
+def generate_expiry_timestamp(seconds_from_now: int) -> int:
+    return int(time.time()) + seconds_from_now
+
+
 def validate_access_token(
     access_token: Optional[str] = None,
     api_server: Optional[str] = None,
     expires_in: Optional[int] = None,
+    expires_at: Optional[int] = None,
     refresh_token: Optional[str] = None,
     token_type: Optional[str] = None,
 ):
@@ -88,6 +92,8 @@ def validate_access_token(
     if api_server is None:
         raise Exception("API server URL was not provided.")
     if expires_in is None:
+        raise Exception("Expiry time was not provided.")
+    if expires_at is None:
         raise Exception("Expiry time was not provided.")
     if refresh_token is None:
         raise Exception("Refresh token was not provided.")
