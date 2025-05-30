@@ -10,14 +10,14 @@ INSTALL_REQUIRES = [
 with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
     LONG_DESCRIPTION = file_open.read()
 
-exec(open("qtrade/_version.py").read())
+exec(open("qtrade_rr/_version.py").read())
 
 setup(
-    name="qtrade",
+    name="qtrade_rr",
     version=__version__,
     description="Questrade API wrapper for Python",
     long_description=LONG_DESCRIPTION,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     url="https://github.com/jborchma/qtrade",
     license="MIT",
     packages=find_packages(),

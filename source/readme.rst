@@ -13,7 +13,7 @@ the command
 
 .. code:: bash
 
-  pip install qtrade
+  pip install qtrade_rr
 
 Usage
 -----
@@ -28,7 +28,7 @@ The central class can be initialized via
 
 .. code:: python
 
-  from qtrade import Questrade
+  from qtrade_rr import Questrade
 
   qtrade = Questrade(access_code='<access_code>')
 
