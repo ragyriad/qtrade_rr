@@ -10,7 +10,6 @@ expires_in: 1234
 refresh_token: hunter2
 token_type: Bearer
 """
-
 INCOMPLETE_ACCESS_TOKEN_YAML = """access_token: hunter2
 api_server: www.api_url.com
 expires_in: 1234
